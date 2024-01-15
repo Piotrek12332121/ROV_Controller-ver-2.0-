@@ -6,7 +6,7 @@ import threading
 import pygame
 import re 
 from src.boat_state import Boat
-from src.rs_connection import UsbDevice
+
 boat_=Boat()
 
 # Function to list all available serial ports
@@ -20,10 +20,10 @@ def get_values_from_raw(raw_string:str):
     return values
 
 # Function to read data from the port and display it in the text area
-def read_from_port(ser_port):
+def read_from_port(ser):
     while True:
         try:
-            data = ser_port.ser.readline()
+            data = ser.readline()
             decoded_data = data.decode('utf-8', 
                                        errors='replace').rstrip()
   
@@ -44,9 +44,9 @@ def connect():
     port = port_combo.get()
     baud_rate = int(baud_rate_combo.get())
     try:
-        global ser_port
-        ser_port = UsbDevice(port,baud_rate)
-        threading.Thread(target=read_from_port, args=(ser_port,),
+        global ser
+        ser = serial.Serial(port, baud_rate, timeout=1)
+        threading.Thread(target=read_from_port, args=(ser,),
                           daemon=True).start()
     except Exception as e:
         received_text_area.insert(ttk.END, f"Error: {e}\n")
@@ -57,16 +57,16 @@ def send_command():
 
     if len(command)==4:
         message=f'{command[0]}{command[1]}{command[2]}{command[3]}'
-        if ser_port.ser:
-            ser_port.ser.write(message.encode('utf-8'))
+        if ser:
+            ser.write(message.encode('utf-8'))
             sent_text_area.insert(ttk.END, f"Sent: {command}\n")
             sent_text_area.see(ttk.END)
     else: 
         matches =command.split(',')
         message=f'{matches[0]}{matches[1]}{matches[2]}{matches[3]}'
 
-        if ser_port.ser:
-            ser_port.ser.write(message.encode('utf-8'))
+        if ser:
+            ser.write(message.encode('utf-8'))
             sent_text_area.insert(ttk.END, f"Sent: {message}\n")
             sent_text_area.see(ttk.END)
         
@@ -114,7 +114,7 @@ def gamepad_thread():
         print("Joystick found and inicialized.")
 
     if joystick_count != 0:
-        global ser_port
+        
         running=True
         while running:
             for event in pygame.event.get():   
@@ -154,12 +154,36 @@ def gamepad_thread():
             J2_axis_y= convert(my_joystick.get_axis(3),False)
 
             print(J1_axis_y,J2_axis_y,C_vel,D_vel)
+            usb_.send_via_USB(int(J1_axis_y),int(J2_axis_y),int(C_vel),int(D_vel))
+            clock.tick(20)
+    # pygame.init()
+    # joystick_count = pygame.joystick.get_count()
+    # if joystick_count == 0:
+    #     print("No joysticks found.")
+    #     return
+    # my_joystick = pygame.joystick.Joystick(0)
+    # my_joystick.init()
+    
+    # while gamepad_send_var.get():
+    #     for event in pygame.event.get():
+    #         if event.type == pygame.QUIT:
+    #             pygame.quit()
+    #             return
 
-            sent_text_area.insert(ttk.END, f"Sent: {J1_axis_y,J2_axis_y,C_vel,D_vel}\n")
-            sent_text_area.see(ttk.END)
-        
-            ser_port.send_via_USB(int(J1_axis_y),int(J2_axis_y),int(C_vel),int(D_vel))
-            clock.tick(10)
+    #     # Handle joystick axis motion
+    #     J1_axis_x = convert(my_joystick.get_axis(0), True)
+    #     J1_axis_y = convert(my_joystick.get_axis(1), True)
+    #     J2_axis_x = convert(my_joystick.get_axis(2), False)
+    #     J2_axis_y = convert(my_joystick.get_axis(3), False)
+
+    #     if ser:
+    #         data_to_send = f"{J1_axis_x}{J1_axis_y}{J2_axis_x}{J2_axis_y}\n"
+    #         ser.write(data_to_send.encode('utf-8'))
+    #         sent_text_area.insert(ttk.END, f"Sent: {data_to_send}\n")
+    #         sent_text_area.see(ttk.END)
+    #     pygame.time.delay(20)  # Delay for 20 ms
+
+    # pygame.quit()
 
 # Create the main window with a dark theme
 root = ttk.Window(themename='darkly')
@@ -236,8 +260,8 @@ battery_voltage.grid(column=0, row=9, sticky="w", padx=10, pady=5)
 def update_real_time_data(*args):
     a_vel.config(text=f"A velocity: {args[0][0]}")
     b_vel.config(text=f"B velocity: {args[0][1]}")
-    c_vel.config(text=f"C velocity: {args[0][2]}")
-    d_vel.config(text=f"D velocity: {args[0][3]}")
+    c_vel.config(text=f"A velocity: {args[0][2]}")
+    d_vel.config(text=f"A velocity: {args[0][3]}")
 
     roll.config(text= f"Roll    : {args[0][4]}")
     pitch.config(text=f"Pitch   : {args[0][5]}")

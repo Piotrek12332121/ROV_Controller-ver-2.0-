@@ -107,3 +107,17 @@ class Boat():
         d_bytes=self._d_vel.to_bytes(1,byteorder='little')
         data_frame=a_bytes+b_bytes+c_bytes+d_bytes
         return data_frame
+    
+    def update_values(self,*args):
+        if len(args)>=6:
+            self.a_vel=args[0]
+            self.b_vel=args[1]
+            self.c_vel=args[2]
+            self.d_vel=args[3]
+
+            self.roll=args[4]
+            self.pitch=args[5]
+            self.yaw=args[6]
+
+            print(self.roll)
+        
