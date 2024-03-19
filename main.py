@@ -7,6 +7,7 @@ import pygame
 import re 
 from src.boat_state import Boat
 from src.rs_connection import UsbDevice
+
 boat_=Boat()
 
 # Function to list all available serial ports
@@ -22,22 +23,29 @@ def get_values_from_raw(raw_string:str):
 # Function to read data from the port and display it in the text area
 def read_from_port(ser_port):
     while True:
-        try:
-            data = ser_port.ser.readline()
-            decoded_data = data.decode('utf-8', 
-                                       errors='replace').rstrip()
+        # try:
+        #     data = ser_port.ser.readline()
+        #     decoded_data = data.decode('utf-8', 
+        #                                errors='replace').rstrip()
   
-            if decoded_data:
-                values=get_values_from_raw(decoded_data)
-                boat_.update_values(values)
-                update_real_time_data(values)
+        #     if decoded_data:
+        #         values=get_values_from_raw(decoded_data)
+        #         boat_.update_values(values)
+        #         update_real_time_data(values)
             
-                received_text_area.insert(ttk.END,
-                                           f"Received: {decoded_data}\n")
-                received_text_area.see(ttk.END)
+        #         received_text_area.insert(ttk.END,
+        #                                    f"Received: {decoded_data}\n")
+        #         received_text_area.see(ttk.END)
 
-        except Exception as e:
-            received_text_area.insert(ttk.END, f"Error: {e}\n")
+        # except Exception as e:
+        #     received_text_area.insert(ttk.END, f"Error: {e}\n")
+
+        data = ser_port.ser.readline()
+        decoded_data = data.decode('utf-8', 
+                                errors='replace').rstrip()
+        received_text_area.insert(ttk.END,
+                                f"Received: {decoded_data}\n")
+        received_text_area.see(ttk.END)
 
 # Function to connect to the selected port
 def connect():
@@ -58,18 +66,10 @@ def send_command():
     if len(command)==4:
         message=f'{command[0]}{command[1]}{command[2]}{command[3]}'
         if ser_port.ser:
-            ser_port.ser.write(message.encode('utf-8'))
+            ser_port.send_via_USB(int(ord(command[0])),int(ord(command[1])),int(ord(command[2])),int(ord(command[3])))
             sent_text_area.insert(ttk.END, f"Sent: {command}\n")
             sent_text_area.see(ttk.END)
-    else: 
-        matches =command.split(',')
-        message=f'{matches[0]}{matches[1]}{matches[2]}{matches[3]}'
 
-        if ser_port.ser:
-            ser_port.ser.write(message.encode('utf-8'))
-            sent_text_area.insert(ttk.END, f"Sent: {message}\n")
-            sent_text_area.see(ttk.END)
-        
 
 # Function to convert gamepad axis value
 def convert(x:float,range=False)->int:
@@ -90,7 +90,205 @@ def convert(x:float,range=False)->int:
         value=200
     return value
 # Function to handle gamepad input and send data through USB
+def dot_product(vec1,vec2):
+    return vec1[0]*vec2[0]+vec1[1]*vec2[1]
+
+def vel_from_joy(J_axis_x,J_axis_y):
+
+    vmaxr_f=[(2**0.5)/2,(2**0.5)/2]
+    vmaxr_r=[(2**0.5)/2,-(2**0.5)/2]
+
+    vmaxl_f=[-(2**0.5)/2,(2**0.5)/2]
+    vmaxl_r=[-(2**0.5)/2,-(2**0.5)/2]
+
+    control_vector=[J_axis_x,J_axis_y]
+
+    vmaxr_f_dot=dot_product(vmaxr_f,control_vector)
+    vmaxr_r_dot=dot_product(vmaxr_r,control_vector)
+
+    vmaxl_f_dot=dot_product(vmaxl_f,control_vector)
+    vmaxl_r_dot=dot_product(vmaxl_r,control_vector)
+
+    left_velocity=vmaxl_f_dot
+    right_velocity=vmaxr_f_dot
+
+    # if left_velocity>1:
+    #     left_velocity=1
+    # if left_velocity<-1:
+    #     left_velocity=-1
+
+    # if right_velocity>1:
+    #     right_velocity=1
+    # if right_velocity<-1:
+    #     right_velocity=-1
+
+    return(left_velocity,right_velocity)
 def gamepad_thread():
+    # A_vel=100
+    # B_vel=100
+    # C_vel=100
+    # D_vel=100
+
+    # pygame.init()
+
+    # clock=pygame.time.Clock()
+    # change_range=False
+
+
+    # # Count the joysticks the computer has
+    # joystick_count = pygame.joystick.get_count()
+    # if joystick_count == 0:
+    #     # No joysticks!
+    #     print("Error, I didn't find any joysticks.")
+    # else:
+    #     # Use joystick #0 and initialize it
+    #     my_joystick = pygame.joystick.Joystick(0)
+    #     my_joystick.init()
+    #     print("Joystick found and inicialized.")
+
+    # if joystick_count != 0:
+    #     global ser_port
+    #     running=True
+    #     J1_x=0
+    #     J1_y=0
+    #     while running:
+
+    #         for event in pygame.event.get():   
+    #             J1_x = my_joystick.get_axis(0)
+    #             J1_y= -my_joystick.get_axis(1)
+
+    #             J2_x = my_joystick.get_axis(2)
+    #             J2_y= my_joystick.get_axis(3)
+
+    #         radius=1
+    #         # overall_speed=(J1_x**2+J1_y**2)**0.5
+    #         # V_y=J1_y*overall_speed
+    #         # V_x=J1_x*overall_speed
+    #         # V_1=J1_x*V_x+V_y
+    #         # V_2=(1-J1_x)*V_x+V_y
+    #         power = math.sqrt(J1_x**2 + J1_y**2)
+    #         P_en = 0
+    #         L_en = 0
+
+    #         if J1_x >= 0 and J1_y >= 0:
+    #             L_en = power
+    #             if abs(J1_x) > abs(J1_y):
+    #                 P_en = -power * (1-(abs(J1_y)/abs(J1_x)))
+    #             elif abs(J1_y) > abs(J1_x):
+    #                 P_en = power * (1-(abs(J1_x)/abs(J1_y)))
+    #         elif J1_x <= 0 and J1_y <= 0:
+    #             L_en = -power
+    #             if abs(J1_x) > abs(J1_y):
+    #                 P_en = power * (1-(abs(J1_y)/abs(J1_x)))
+    #             elif abs(J1_y) > abs(J1_x):
+    #                 P_en = -power * (1-(abs(J1_x)/abs(J1_y)))
+    #         elif J1_x <= 0 and J1_y >= 0:
+    #             P_en = power
+    #             if abs(J1_x) > abs(J1_y):
+    #                 L_en = -power * (1-(abs(J1_y)/abs(J1_x)))
+    #             elif abs(J1_y) > abs(J1_x):
+    #                 L_en = power * (1-(abs(J1_x)/abs(J1_y)))
+    #         elif J1_x >= 0 and J1_y <= 0:
+    #             P_en = -power
+    #             if abs(J1_x) > abs(J1_y):
+    #                 L_en = power * (1-(abs(J1_y)/abs(J1_x)))
+    #             elif abs(J1_y) > abs(J1_x):
+    #                 L_en = -power * (1-(abs(J1_x)/abs(J1_y)))
+    #         L_en=-L_en*100
+    #         P_en=P_en*100
+    #         if L_en>100:
+    #             L_en=100
+    #         if P_en>100:
+    #             P_en=100
+
+    #         if L_en<-100:
+    #             L_en=-100
+    #         if P_en<-100:
+    #             P_en=-100
+    #         v1_=L_en+100
+    #         v2_=P_en+100
+
+    #         print(int(v1_), int(v2_),0,0)
+
+    #         sent_text_area.insert(ttk.END, f"Sent: {int(v1_), int(v2_),0,0}\n")
+    #         sent_text_area.see(ttk.END)
+    #         ser_port.send_via_USB(int(v1_),int(v2_),int(100),int(100))
+    #         clock.tick(10)
+
+
+    
+    # A_vel=100
+    # B_vel=100
+    # C_vel=100
+    # D_vel=100
+
+    # pygame.init()
+
+    # clock=pygame.time.Clock()
+    # change_range=False
+
+
+    # # Count the joysticks the computer has
+    # joystick_count = pygame.joystick.get_count()
+    # if joystick_count == 0:
+    #     # No joysticks!
+    #     print("Error, I didn't find any joysticks.")
+    # else:
+    #     # Use joystick #0 and initialize it
+    #     my_joystick = pygame.joystick.Joystick(0)
+    #     my_joystick.init()
+    #     print("Joystick found and inicialized.")
+
+    # if joystick_count != 0:
+    #     global ser_port
+    #     running=True
+    #     while running:
+    #         for event in pygame.event.get():   
+        
+
+    #             if my_joystick.get_button(0)==1:
+    #                 C_vel=C_vel+1
+    #                 D_vel=D_vel-1
+
+    #                 if C_vel<0: 
+    #                     C_vel=0
+    #                 if C_vel>200:
+    #                     C_vel=200
+
+    #                 if D_vel<0:
+    #                     D_vel=0
+    #                 if D_vel>200:
+    #                     D_vel=200 
+
+    #             if my_joystick.get_button(2)==1:
+    #                 C_vel=C_vel-1
+    #                 D_vel=D_vel+1
+
+    #                 if C_vel<0:
+    #                     C_vel=0
+    #                 if C_vel>200:
+    #                     C_vel=200
+
+    #                 if D_vel<0:
+    #                     D_vel=0
+    #                 if D_vel>200:
+    #                     D_vel=200 
+
+    #         J1_axis_x = convert( my_joystick.get_axis(0),False)   ## setting true or false can change the direction of a motor 
+    #         J1_axis_y= convert(my_joystick.get_axis(1),False)
+    #         J2_axis_x = convert(my_joystick.get_axis(2),True)
+    #         J2_axis_y= convert(my_joystick.get_axis(3),True)
+
+    #         print(J1_axis_y,J2_axis_y,C_vel,D_vel)
+
+    #         sent_text_area.insert(ttk.END, f"Sent: {J1_axis_y,J2_axis_y,C_vel,D_vel}\n")
+    #         sent_text_area.see(ttk.END)
+        
+    #         ser_port.send_via_USB(int(J1_axis_y),int(J2_axis_y),int(C_vel),int(D_vel))
+    #         clock.tick(10)
+
+
+
     A_vel=100
     B_vel=100
     C_vel=100
@@ -118,49 +316,71 @@ def gamepad_thread():
         running=True
         while running:
             for event in pygame.event.get():   
+                pass
 
 
-                if my_joystick.get_button(0)==1:
-                    C_vel=C_vel+1
-                    D_vel=D_vel-1
 
-                    if C_vel<0: 
-                        C_vel=0
-                    if C_vel>200:
-                        C_vel=200
+            J1_axis_x= - my_joystick.get_axis(0)   ## setting true or false can change the direction of a motor 
+            J1_axis_y= -  my_joystick.get_axis(1)
+            J2_axis_x = my_joystick.get_axis(2)
+            J2_axis_y= my_joystick.get_axis(3)
 
-                    if D_vel<0:
-                        D_vel=0
-                    if D_vel>200:
-                        D_vel=200 
+   
+            left_motor_vel,right_motor_vel=vel_from_joy(J2_axis_x,J2_axis_y)
 
-                if my_joystick.get_button(2)==1:
-                    C_vel=C_vel-1
-                    D_vel=D_vel+1
+            left_up_motor_vel,right_up_motor_vel=vel_from_joy(J1_axis_x,J1_axis_y)
 
-                    if C_vel<0:
-                        C_vel=0
-                    if C_vel>200:
-                        C_vel=200
+            left_rear_to_send=convert(left_motor_vel,False)
+            right_rear_to_send=convert(right_motor_vel,True)
 
-                    if D_vel<0:
-                        D_vel=0
-                    if D_vel>200:
-                        D_vel=200 
-
-            J1_axis_x = convert( my_joystick.get_axis(0),True)
-            J1_axis_y= convert(my_joystick.get_axis(1),True)
-            J2_axis_x = convert(my_joystick.get_axis(2),False)
-            J2_axis_y= convert(my_joystick.get_axis(3),False)
-
-            print(J1_axis_y,J2_axis_y,C_vel,D_vel)
-
-            sent_text_area.insert(ttk.END, f"Sent: {J1_axis_y,J2_axis_y,C_vel,D_vel}\n")
+            left_up_to_send=convert(left_up_motor_vel,False)
+            right_up_to_send=convert(right_up_motor_vel,True)
+            
+            sent_text_area.insert(ttk.END, f"Sent: {left_rear_to_send,right_rear_to_send,left_up_to_send,right_up_to_send}\n")
             sent_text_area.see(ttk.END)
         
-            ser_port.send_via_USB(int(J1_axis_y),int(J2_axis_y),int(C_vel),int(D_vel))
-            clock.tick(10)
+            ser_port.send_via_USB(left_rear_to_send,right_rear_to_send,left_up_to_send,right_up_to_send)
+            clock.tick(20)
+    # A_vel=100
+    # B_vel=100
+    # C_vel=100
+    # D_vel=100
+    # pygame.init()
 
+    # clock=pygame.time.Clock()
+    # change_range=False
+
+
+    # # Count the joysticks the computer has
+    # joystick_count = pygame.joystick.get_count()
+    # if joystick_count == 0:
+    #     # No joysticks!
+    #     print("Error, I didn't find any joysticks.")
+    # else:
+    #     # Use joystick #0 and initialize it
+    #     my_joystick = pygame.joystick.Joystick(0)
+    #     my_joystick.init()
+    #     print("Joystick found and inicialized.")
+
+    # if joystick_count != 0:
+    #     global ser_port
+    #     running=True
+    #     while running:
+    #         for event in pygame.event.get():   
+    #             J1_axis_x = my_joystick.get_axis(0)   ## setting true or false can change the direction of a motor 
+    #             J1_axis_y= my_joystick.get_axis(1)
+    #             J2_axis_x = my_joystick.get_axis(2)
+    #             J2_axis_y= my_joystick.get_axis(3)
+
+    #             left_motor_vel,right_motor_vel=vel_from_joy(J1_axis_x,J1_axis_y)
+
+    #             print(J1_axis_x,J1_axis_y,left_motor_vel,right_motor_vel)
+
+    #             # sent_text_area.insert(ttk.END, f"Sent: {J1_axis_y,J2_axis_y,C_vel,D_vel}\n")
+    #             # sent_text_area.see(ttk.END)
+            
+    #            # ser_port.send_via_USB(int(J1_axis_y),int(J2_axis_y),int(C_vel),int(D_vel))
+    #             clock.tick(10)
 # Create the main window with a dark theme
 root = ttk.Window(themename='darkly')
 root.title("ROV controller")
